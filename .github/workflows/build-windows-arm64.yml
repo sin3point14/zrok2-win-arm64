@@ -55,8 +55,9 @@ jobs:
           echo "Downloading $LLVM_MINGW_URL"
           curl -L -o /tmp/llvm-mingw.tar.xz "$LLVM_MINGW_URL"
           sudo tar -xJf /tmp/llvm-mingw.tar.xz -C /opt
-          echo "$(ls -d /opt/llvm-mingw-*/bin)" >> $GITHUB_PATH
-          # verify the cross-compiler is available
+          LLVM_DIR=$(ls -d /opt/llvm-mingw-*/bin)
+          echo "$LLVM_DIR" >> $GITHUB_PATH
+          export PATH="$LLVM_DIR:$PATH"
           aarch64-w64-mingw32-clang --version
 
       - uses: actions/checkout@v4
