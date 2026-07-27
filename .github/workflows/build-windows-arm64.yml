@@ -51,11 +51,13 @@ jobs:
         run: |
           sudo apt-get install -y curl xz-utils
           LLVM_MINGW_URL=$(curl -sSfL https://api.github.com/repos/mstorsjo/llvm-mingw/releases/latest \
-            | jq -r '.assets[] | select(.name | test("llvm-mingw-.*-ucrt-aarch64\\.tar\\.xz$")) | .browser_download_url')
+            | jq -r '.assets[] | select(.name | test("llvm-mingw-.*-ucrt-ubuntu-22\\.04-x86_64\\.tar\\.xz$")) | .browser_download_url')
           echo "Downloading $LLVM_MINGW_URL"
           curl -L -o /tmp/llvm-mingw.tar.xz "$LLVM_MINGW_URL"
           sudo tar -xJf /tmp/llvm-mingw.tar.xz -C /opt
           echo "$(ls -d /opt/llvm-mingw-*/bin)" >> $GITHUB_PATH
+          # verify the cross-compiler is available
+          aarch64-w64-mingw32-clang --version
 
       - uses: actions/checkout@v4
         if: steps.check.outputs.skip == 'false'
