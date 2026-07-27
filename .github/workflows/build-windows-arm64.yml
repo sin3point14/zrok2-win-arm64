@@ -2,7 +2,7 @@ name: Build Windows ARM64
 
 on:
   schedule:
-    - cron: '0 6 * * 1'  # weekly on Monday 06:00 UTC
+    - cron: '0 6 * * 1'
   workflow_dispatch:
     inputs:
       tag:
@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-11-arm
     permissions:
       contents: write
     steps:
@@ -37,16 +37,10 @@ jobs:
           VER="${TAG#v}"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           if gh release view "$TAG" --repo ${{ github.repository }} --json tagName --jq '.tagName' &>/dev/null; then
-            echo "Release $TAG already exists in this repo — skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - run: sudo apt update
-        if: steps.check.outputs.skip == 'false'
-      - run: sudo apt-get install -y gcc-mingw-w64-aarch64
-        if: steps.check.outputs.skip == 'false'
 
       - uses: actions/checkout@v4
         if: steps.check.outputs.skip == 'false'
@@ -54,9 +48,6 @@ jobs:
           repository: openziti/zrok
           ref: ${{ steps.tag.outputs.tag }}
           fetch-depth: 0
-
-      - run: git fetch --force --tags
-        if: steps.check.outputs.skip == 'false'
 
       - uses: actions/setup-go@v5
         if: steps.check.outputs.skip == 'false'
@@ -92,7 +83,6 @@ jobs:
         shell: bash
         env:
           CGO_ENABLED: "1"
-          CC: /usr/bin/aarch64-w64-mingw32-gcc
           GOOS: windows
           GOARCH: arm64
         run: |
@@ -107,7 +97,7 @@ jobs:
           cd "zrok2_${VER}_windows_arm64"
           sha256sum zrok2.exe > zrok2.exe.sha256
           cd ..
-          tar czf "zrok_${VER}_windows_arm64.tar.gz" "zrok2_${VER}_windows_arm64"
+          7z a "zrok_${VER}_windows_arm64.zip" "zrok2_${VER}_windows_arm64"
 
       - name: Create Release
         if: steps.check.outputs.skip == 'false'
@@ -118,7 +108,7 @@ jobs:
           TAG="${{ steps.tag.outputs.tag }}"
           VER="${{ steps.check.outputs.version }}"
           gh release create "$TAG" \
-            "zrok_${VER}_windows_arm64.tar.gz" \
+            "zrok_${VER}_windows_arm64.zip" \
             --repo ${{ github.repository }} \
             --title "zrok $TAG (Windows ARM64)" \
             --notes "Windows ARM64 build of [zrok $TAG](https://github.com/openziti/zrok/releases/tag/$TAG)"
