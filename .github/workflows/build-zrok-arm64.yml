@@ -1,6 +1,6 @@
 name: Build Windows ARM64
 
-"on":
+on:
   schedule:
     - cron: '0 6 * * 1'
   workflow_dispatch:
@@ -102,20 +102,20 @@ jobs:
         run: |
           go mod download github.com/kolesnikovae/go-winjob@v1.0.0
           JOBAPI_DIR="$(go env GOMODCACHE)/github.com/kolesnikovae/go-winjob@v1.0.0/jobapi"
-          sudo tee "$JOBAPI_DIR/jobapi_arm64.go" > /dev/null << 'GOEOF'
-          //go:build windows && arm64
-
-          package jobapi
-
-          type JOBOBJECT_EXTENDED_LIMIT_INFORMATION struct {
-              BasicLimitInformation JOBOBJECT_BASIC_LIMIT_INFORMATION
-              IoInfo               IO_COUNTERS
-              ProcessMemoryLimit   uintptr
-              JobMemoryLimit       uintptr
-              PeakProcessMemoryUsed uintptr
-              PeakJobMemoryUsed    uintptr
-          }
-          GOEOF
+          {
+            echo '//go:build windows && arm64'
+            echo ''
+            echo 'package jobapi'
+            echo ''
+            echo 'type JOBOBJECT_EXTENDED_LIMIT_INFORMATION struct {'
+            echo '    BasicLimitInformation JOBOBJECT_BASIC_LIMIT_INFORMATION'
+            echo '    IoInfo               IO_COUNTERS'
+            echo '    ProcessMemoryLimit   uintptr'
+            echo '    JobMemoryLimit       uintptr'
+            echo '    PeakProcessMemoryUsed uintptr'
+            echo '    PeakJobMemoryUsed    uintptr'
+            echo '}'
+          } | sudo tee "$JOBAPI_DIR/jobapi_arm64.go"
 
       - name: Build
         if: steps.check.outputs.skip == 'false'
