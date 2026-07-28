@@ -48,6 +48,8 @@ jobs:
       - name: Install llvm-mingw (aarch64 Windows cross-compiler)
         if: steps.check.outputs.skip == 'false'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           sudo apt-get install -y curl xz-utils
           LLVM_MINGW_URL=$(gh release view latest --repo mstorsjo/llvm-mingw --json assets --jq \
