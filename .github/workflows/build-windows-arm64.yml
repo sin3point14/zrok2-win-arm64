@@ -96,29 +96,26 @@ jobs:
         env:
           CI: "true"
 
-      - name: Download dependencies
-        if: steps.check.outputs.skip == 'false'
-        shell: bash
-        run: go mod download github.com/kolesnikovae/go-winjob@v1.0.0
-
       - name: Patch go-winjob for ARM64
         if: steps.check.outputs.skip == 'false'
         shell: bash
         run: |
-          cat > "$(go env GOMODCACHE)/github.com/kolesnikovae/go-winjob@v1.0.0/jobapi/jobapi_arm64.go" << 'GOEOF'
-          //go:build windows && arm64
+          go mod download github.com/kolesnikovae/go-winjob@v1.0.0
+          JOBAPI_DIR="$(go env GOMODCACHE)/github.com/kolesnikovae/go-winjob@v1.0.0/jobapi"
+          sudo tee "$JOBAPI_DIR/jobapi_arm64.go" > /dev/null << 'GOEOF'
+//go:build windows && arm64
 
-          package jobapi
+package jobapi
 
-          type JOBOBJECT_EXTENDED_LIMIT_INFORMATION struct {
-              BasicLimitInformation JOBOBJECT_BASIC_LIMIT_INFORMATION
-              IoInfo               IO_COUNTERS
-              ProcessMemoryLimit   uintptr
-              JobMemoryLimit       uintptr
-              PeakProcessMemoryUsed uintptr
-              PeakJobMemoryUsed    uintptr
-          }
-          GOEOF
+type JOBOBJECT_EXTENDED_LIMIT_INFORMATION struct {
+    BasicLimitInformation JOBOBJECT_BASIC_LIMIT_INFORMATION
+    IoInfo               IO_COUNTERS
+    ProcessMemoryLimit   uintptr
+    JobMemoryLimit       uintptr
+    PeakProcessMemoryUsed uintptr
+    PeakJobMemoryUsed    uintptr
+}
+GOEOF
 
       - name: Build
         if: steps.check.outputs.skip == 'false'
