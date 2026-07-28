@@ -48,14 +48,12 @@ jobs:
       - name: Install llvm-mingw (aarch64 Windows cross-compiler)
         if: steps.check.outputs.skip == 'false'
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           sudo apt-get install -y curl xz-utils
-          LLVM_MINGW_URL=$(gh release view latest --repo mstorsjo/llvm-mingw --json assets --jq \
-            '.assets[] | select(.name | test("llvm-mingw-.*-ucrt-ubuntu-22\\.04-x86_64\\.tar\\.xz$")) | .url')
+          # Use a known working release (the latest tag that has ubuntu x86_64 archive)
+          LLVM_MINGW_URL="https://github.com/mstorsjo/llvm-mingw/releases/download/20260721/llvm-mingw-20260721-ucrt-ubuntu-22.04-x86_64.tar.xz"
           echo "Downloading $LLVM_MINGW_URL"
-          curl -L -o /tmp/llvm-mingw.tar.xz "$LLVM_MINGW_URL"
+          curl -fL -o /tmp/llvm-mingw.tar.xz "$LLVM_MINGW_URL"
           sudo tar -xJf /tmp/llvm-mingw.tar.xz -C /opt
           LLVM_DIR=$(ls -d /opt/llvm-mingw-*/bin)
           echo "$LLVM_DIR" >> $GITHUB_PATH
