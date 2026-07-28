@@ -50,8 +50,8 @@ jobs:
         shell: bash
         run: |
           sudo apt-get install -y curl xz-utils
-          LLVM_MINGW_URL=$(curl -sSfL https://api.github.com/repos/mstorsjo/llvm-mingw/releases/latest \
-            | jq -r '.assets[] | select(.name | test("llvm-mingw-.*-ucrt-ubuntu-22\\.04-x86_64\\.tar\\.xz$")) | .browser_download_url')
+          LLVM_MINGW_URL=$(gh release view latest --repo mstorsjo/llvm-mingw --json assets --jq \
+            '.assets[] | select(.name | test("llvm-mingw-.*-ucrt-ubuntu-22\\.04-x86_64\\.tar\\.xz$")) | .url')
           echo "Downloading $LLVM_MINGW_URL"
           curl -L -o /tmp/llvm-mingw.tar.xz "$LLVM_MINGW_URL"
           sudo tar -xJf /tmp/llvm-mingw.tar.xz -C /opt
