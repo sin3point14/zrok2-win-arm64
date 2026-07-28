@@ -1,0 +1,152 @@
+name: Build Windows ARM64
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'zrok tag to build (e.g. v2.0.4)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve tag to build
+        id: tag
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            TAG="$(curl -sSfL https://api.github.com/repos/openziti/zrok/releases/latest | jq -r '.tag_name')"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check if already built
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          VER="${TAG#v}"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo ${{ github.repository }} --json tagName --jq '.tagName' &>/dev/null; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: sudo apt update
+        if: steps.check.outputs.skip == 'false'
+
+      - name: Install llvm-mingw (aarch64 Windows cross-compiler)
+        if: steps.check.outputs.skip == 'false'
+        shell: bash
+        run: |
+          sudo apt-get install -y curl xz-utils
+          LLVM_MINGW_URL=$(curl -sSfL https://api.github.com/repos/mstorsjo/llvm-mingw/releases/latest             | jq -r '.assets[] | select(.name | test("llvm-mingw-.*-ucrt-ubuntu-22\.04-x86_64\.tar\.xz$")) | .browser_download_url')
+          echo "Downloading $LLVM_MINGW_URL"
+          curl -L -o /tmp/llvm-mingw.tar.xz "$LLVM_MINGW_URL"
+          sudo tar -xJf /tmp/llvm-mingw.tar.xz -C /opt
+          LLVM_DIR=$(ls -d /opt/llvm-mingw-*/bin)
+          echo "$LLVM_DIR" >> $GITHUB_PATH
+          export PATH="$LLVM_DIR:$PATH"
+          aarch64-w64-mingw32-clang --version
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.skip == 'false'
+        with:
+          repository: openziti/zrok
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        if: steps.check.outputs.skip == 'false'
+        with:
+          go-version-file: ./go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.skip == 'false'
+        with:
+          node-version: 22.x
+
+      - run: npm install
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ui
+      - run: npm run build
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ui
+        env:
+          CI: "true"
+
+      - run: npm install
+        if: steps.check.outputs.skip == 'false'
+        working-directory: agent/agentUi
+      - run: npm run build
+        if: steps.check.outputs.skip == 'false'
+        working-directory: agent/agentUi
+        env:
+          CI: "true"
+
+      - name: Patch go-winjob for ARM64
+        if: steps.check.outputs.skip == 'false'
+        shell: bash
+        run: |
+          go mod download github.com/kolesnikovae/go-winjob@v1.0.0
+          JOBAPI_DIR="$(go env GOMODCACHE)/github.com/kolesnikovae/go-winjob@v1.0.0/jobapi"
+          sudo tee "$JOBAPI_DIR/jobapi_arm64.go" > /dev/null << 'GOEOF'
+//go:build windows && arm64
+
+package jobapi
+
+type JOBOBJECT_EXTENDED_LIMIT_INFORMATION struct {
+    BasicLimitInformation JOBOBJECT_BASIC_LIMIT_INFORMATION
+    IoInfo               IO_COUNTERS
+    ProcessMemoryLimit   uintptr
+    JobMemoryLimit       uintptr
+    PeakProcessMemoryUsed uintptr
+    PeakJobMemoryUsed    uintptr
+}
+GOEOF
+
+      - name: Build
+        if: steps.check.outputs.skip == 'false'
+        shell: bash
+        env:
+          CGO_ENABLED: "1"
+          CC: aarch64-w64-mingw32-clang
+          GOOS: windows
+          GOARCH: arm64
+        run: |
+          VER="${{ steps.check.outputs.version }}"
+          TAG="${{ steps.tag.outputs.tag }}"
+          HASH="$(git rev-parse --short HEAD)"
+          mkdir -p "zrok2_${VER}_windows_arm64"
+          go build             -ldflags "-s -w -X github.com/openziti/zrok/v2/build.Version=${VER} -X github.com/openziti/zrok/v2/build.Hash=${HASH}"             -o "zrok2_${VER}_windows_arm64/zrok2.exe"             ./cmd/zrok2
+
+      - name: Package
+        if: steps.check.outputs.skip == 'false'
+        shell: bash
+        run: |
+          VER="${{ steps.check.outputs.version }}"
+          cd "zrok2_${VER}_windows_arm64"
+          sha256sum zrok2.exe > zrok2.exe.sha256
+          cd ..
+          tar czf "zrok_${VER}_windows_arm64.tar.gz" "zrok2_${VER}_windows_arm64"
+
+      - name: Create Release
+        if: steps.check.outputs.skip == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          VER="${{ steps.check.outputs.version }}"
+          gh release create "$TAG"             "zrok_${VER}_windows_arm64.tar.gz"             --repo ${{ github.repository }}             --title "zrok $TAG (Windows ARM64)"             --notes "Windows ARM64 build of [zrok $TAG](https://github.com/openziti/zrok/releases/tag/$TAG)"
