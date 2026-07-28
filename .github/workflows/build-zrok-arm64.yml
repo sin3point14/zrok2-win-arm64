@@ -131,7 +131,7 @@ jobs:
           HASH="$(git rev-parse --short HEAD)"
           mkdir -p "zrok2_${VER}_windows_arm64"
           go build \
-            -ldflags "-s -w -X github.com/openziti/zrok/v2/build.Version=${VER} -X github.com/openziti/zrok/v2/build.Hash=${HASH}" \
+            -ldflags "-s -w -X github.com/openziti/zrok/v2/build.Version=${TAG} -X github.com/openziti/zrok/v2/build.Hash=${HASH}" \
             -o "zrok2_${VER}_windows_arm64/zrok2.exe" \
             ./cmd/zrok2
 
